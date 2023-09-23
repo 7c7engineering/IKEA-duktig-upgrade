@@ -10,10 +10,15 @@ const uint8_t pin_but_1_bm = PIN6_bm;
 const uint8_t pin_but_2_bm = PIN7_bm;
 
 uint8_t prev_button_state = 0;
-uint8_t led1_state = 0;
-uint8_t led2_state = 0;
+uint8_t led1_state_index = 0;
+uint8_t led2_state_index = 0;
 uint16_t btn1_timeout = 0;
 uint16_t btn2_timeout = 0;
+
+#define num_brightness_levels 4
+const uint16_t brightness_levels[num_brightness_levels] = {0x0000, 0x002F, 0x00AF, 0x1FFF};
+const uint16_t beep_freqs[num_brightness_levels] = {11000, 8000, 6000, 4000};
+
 
 void init_timers(void){
   while (RTC.STATUS > 0) { /* Wait for all register to be synchronized */
@@ -68,29 +73,30 @@ int main(void)
   {
     uint8_t new_button_state = PORTA.IN & (pin_but_1_bm | pin_but_2_bm);
     // pressing a button will change toggle the led on or off.
-    // holding both buttons for 2 seconds will go to special mode
     if (new_button_state != prev_button_state)  // button state changed
     { 
       if (new_button_state == pin_but_1_bm && RTC.CNT > btn1_timeout) // button 1 pressed
       {
-        beep(8000, 50);
-        btn1_timeout = RTC.CNT + 10;               // set timeout to 1 seconds
-        led1_state = !led1_state;                 // toggle led state
-        if(led1_state) TCA0.SINGLE.CMP2 = 0x10; // turn on led ()
-        else TCA0.SINGLE.CMP2 = 0x0000;           // turn off led
+        led1_state_index = (led1_state_index + 1) % num_brightness_levels; // toggle led state
+        TCA0.SINGLE.CMP0 = brightness_levels[led1_state_index];
+        beep(beep_freqs[led1_state_index], 75);
+        btn1_timeout = RTC.CNT + 2;               // set timeout to 200ms
       }
       if(new_button_state == pin_but_2_bm && RTC.CNT > btn2_timeout)        // button 2 pressed
       {
-        beep(11000, 50);
-        btn2_timeout = RTC.CNT + 10;               // set timeout to 1 seconds
-        led2_state = !led2_state;                 // toggle led state
-        if(led2_state) TCA0.SINGLE.CMP0 = 0x10; // turn on led ()
-        else TCA0.SINGLE.CMP0 = 0x0000;           // turn off led
+        led2_state_index = (led2_state_index + 1) % num_brightness_levels; // toggle led state
+        TCA0.SINGLE.CMP2 = brightness_levels[led2_state_index];
+        beep(beep_freqs[led2_state_index], 75);
+        btn2_timeout = RTC.CNT + 2;               // set timeout to 200ms
+        
       }
     }
     if(RTC.CNT > 1000){
+      beep(16000, 75);
       PORTA.OUTCLR = pin_buzzer_bm; 
+      _delay_ms(100);
     }
+    prev_button_state = new_button_state;
   }
 }
 
